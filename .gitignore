@@ -1,0 +1,56 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local environments and caches
+.venv/
+venv/
+.env
+.env.*
+.cache/
+.uv/
+
+# Media and generated transcription outputs
+*.m4a
+*.m4s
+*.mp3
+*.mp4
+*.wav
+*.aac
+*.flac
+*.mov
+*.webm
+*.srt
+*.vtt
+*.zip
+transcript*.txt
+transcript*.md
+transcript*.json
+summary*.md
+*_report.json
+package_report.json
+hallucination_report.json
+audio_verification.json
+translation_cache*.json
+pyannote_diarization.rttm
+
+# Secrets and browser/session artifacts
+*token*
+*secret*
+*cookie*
+*cookies*
+*.har
+media_urls.json
+audio_url.txt
+subtitle_body_url.txt
+subtitle_view*.json
+subtitle_view*.bin
+
+# Keep repository documentation
+!README.md
+!SKILL.md
+!references/*.md
+!docs/**/*.svg

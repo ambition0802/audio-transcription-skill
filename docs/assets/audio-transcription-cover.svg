@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640" role="img" aria-labelledby="title desc">
+  <title id="title">Audio Transcription Skill</title>
+  <desc id="desc">A visual cover showing audio, transcription, subtitles, package output, and quality checks.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#102033"/>
+      <stop offset="52%" stop-color="#163347"/>
+      <stop offset="100%" stop-color="#1c4b4a"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" x2="1">
+      <stop offset="0%" stop-color="#4fd1c5"/>
+      <stop offset="100%" stop-color="#f6c85f"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="16" stdDeviation="18" flood-color="#061018" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+  <rect width="1280" height="640" fill="url(#bg)"/>
+  <g opacity="0.18" fill="none" stroke="#ffffff" stroke-width="2">
+    <path d="M70 490 C220 430 295 548 450 494 S720 410 876 488 S1100 550 1220 454"/>
+    <path d="M40 180 C210 95 360 268 520 178 S760 82 960 178 S1135 250 1240 158"/>
+  </g>
+  <g transform="translate(92 84)">
+    <text x="0" y="0" fill="#eaf6f7" font-size="54" font-family="Inter, PingFang SC, Arial, sans-serif" font-weight="700">Audio Transcription Skill</text>
+    <text x="0" y="52" fill="#b7d8dc" font-size="28" font-family="Inter, PingFang SC, Arial, sans-serif">音视频转录、字幕、翻译、说话人标注与交付打包</text>
+  </g>
+  <g transform="translate(92 190)" filter="url(#shadow)">
+    <rect x="0" y="0" width="330" height="260" rx="22" fill="#f8fbfb"/>
+    <text x="30" y="54" fill="#153044" font-size="26" font-family="Inter, PingFang SC, Arial, sans-serif" font-weight="700">输入源</text>
+    <g fill="none" stroke="#17384d" stroke-width="8" stroke-linecap="round">
+      <path d="M34 145 Q54 86 76 145 T118 145 T160 145 T202 145 T244 145 T286 145"/>
+    </g>
+    <text x="30" y="202" fill="#476171" font-size="20" font-family="Inter, PingFang SC, Arial, sans-serif">Bilibili / 小宇宙 / 本地文件 / RSS</text>
+  </g>
+  <g transform="translate(475 190)" filter="url(#shadow)">
+    <rect x="0" y="0" width="330" height="260" rx="22" fill="#f8fbfb"/>
+    <text x="30" y="54" fill="#153044" font-size="26" font-family="Inter, PingFang SC, Arial, sans-serif" font-weight="700">转录与校验</text>
+    <rect x="34" y="92" width="262" height="32" rx="8" fill="#dff4f2"/>
+    <rect x="34" y="138" width="212" height="26" rx="7" fill="#efe7c7"/>
+    <rect x="34" y="178" width="244" height="26" rx="7" fill="#dff4f2"/>
+    <text x="30" y="224" fill="#476171" font-size="20" font-family="Inter, PingFang SC, Arial, sans-serif">Whisper / 字幕源 / 幻觉检测 / 切片修复</text>
+  </g>
+  <g transform="translate(858 190)" filter="url(#shadow)">
+    <rect x="0" y="0" width="330" height="260" rx="22" fill="#f8fbfb"/>
+    <text x="30" y="54" fill="#153044" font-size="26" font-family="Inter, PingFang SC, Arial, sans-serif" font-weight="700">交付物</text>
+    <g transform="translate(36 86)">
+      <rect x="0" y="0" width="64" height="82" rx="10" fill="#17384d"/>
+      <rect x="82" y="0" width="64" height="82" rx="10" fill="#38a89d"/>
+      <rect x="164" y="0" width="64" height="82" rx="10" fill="#f6c85f"/>
+      <text x="15" y="50" fill="#ffffff" font-size="20" font-family="Inter, Arial, sans-serif">MD</text>
+      <text x="98" y="50" fill="#ffffff" font-size="20" font-family="Inter, Arial, sans-serif">SRT</text>
+      <text x="179" y="50" fill="#263238" font-size="20" font-family="Inter, Arial, sans-serif">ZIP</text>
+    </g>
+    <text x="30" y="224" fill="#476171" font-size="20" font-family="Inter, PingFang SC, Arial, sans-serif">Markdown / TXT / SRT / VTT / JSON</text>
+  </g>
+  <g fill="none" stroke="url(#accent)" stroke-width="8" stroke-linecap="round">
+    <path d="M430 320 H462"/>
+    <path d="M813 320 H845"/>
+  </g>
+  <g transform="translate(92 525)">
+    <rect x="0" y="-34" width="1096" height="72" rx="18" fill="#061018" opacity="0.38"/>
+    <text x="28" y="12" fill="#d8f4f2" font-size="24" font-family="Inter, PingFang SC, Arial, sans-serif">默认 mlx-community/whisper-large-v3-mlx，脚本化处理重复流程，面向 Apple Silicon 本地转录。</text>
+  </g>
+</svg>
