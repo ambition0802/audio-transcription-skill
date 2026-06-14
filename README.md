@@ -43,7 +43,26 @@ python3 "${CODEX_HOME:-$HOME/.codex}/skills/.system/skill-creator/scripts/quick_
 export SKILL_DIR="${CODEX_HOME:-$HOME/.codex}/skills/audio-transcription"
 ```
 
-### 2. 自动准备依赖
+### 2. 本地运行配置建议
+
+这个 Skill 默认在本机跑 MLX Whisper，性能和稳定性主要取决于 Apple Silicon 芯片、统一内存、剩余磁盘空间和 macOS/Python 版本。
+
+| 配置档位 | 建议配置 | 适合任务 | 说明 |
+| --- | --- | --- | --- |
+| 最低可尝试 | Apple Silicon Mac、8GB 统一内存、macOS 14+、原生 arm64 Python 3.10+、15GB+ 可用磁盘 | 短音频、偶发转录、速度优先 | 可以尝试运行，但默认 `large-v3-mlx` 可能吃紧；长音频容易变慢或触发 swap。 |
+| 推荐配置 | M1/M2/M3/M4 或更新芯片、16GB+ 统一内存、macOS 14+、原生 arm64 Python 3.10+、25GB+ 可用磁盘 | 单条视频/播客转录、默认高精度模型 | 推荐作为日常使用下限，适合默认 `mlx-community/whisper-large-v3-mlx`。 |
+| 舒适配置 | Pro/Max/Ultra 芯片、32GB+ 统一内存、50GB+ 可用磁盘 | 多小时长音频、批量任务、说话人标注 | 更适合长任务、pyannote diarization、模型缓存和中间文件共存。 |
+
+默认模型 `mlx-community/whisper-large-v3-mlx` 文件约 3.08GB，实际运行还需要额外内存放解码状态、音频缓冲、Python 运行时和系统进程。速度优先或低内存机器可以改用 `mlx-community/whisper-large-v3-turbo`，它的模型文件约 1.61GB，但准确性通常不作为本 Skill 的默认优先级。
+
+配置判断依据：
+
+- [MLX 安装要求](https://ml-explore.github.io/mlx/build/html/install.html)：Apple Silicon、原生 Python >= 3.10、macOS >= 14.0。
+- [MLX 统一内存说明](https://ml-explore.github.io/mlx/build/html/usage/unified_memory.html)：CPU/GPU 共享统一内存，模型权重和运行状态都会占用同一内存池。
+- [mlx-whisper PyPI](https://pypi.org/project/mlx-whisper/)：`mlx-whisper` 基于 MLX 和 Hugging Face Hub 运行 Whisper。
+- [whisper-large-v3-mlx 文件列表](https://huggingface.co/mlx-community/whisper-large-v3-mlx/tree/main) 和 [whisper-large-v3-turbo 文件列表](https://huggingface.co/mlx-community/whisper-large-v3-turbo/tree/main)：用于估算模型缓存和磁盘空间。
+
+### 3. 自动准备依赖
 
 用户不需要逐项检查命令或手动安装 `mlx-whisper`。Skill 在运行前会先调用依赖预检脚本，自动检查并安装可自动安装的运行时工具：
 
@@ -77,7 +96,7 @@ mlx-community/whisper-large-v3-mlx
 mlx-community/whisper-large-v3-turbo
 ```
 
-### 3. 在 Codex 中直接使用
+### 4. 在 Codex 中直接使用
 
 安装后，你可以在 Codex 里这样提需求：
 
@@ -540,7 +559,8 @@ pyannote 的部分模型是 gated model，需要 Hugging Face 授权。脚本会
 
 ## 限制
 
-- 当前流程主要面向 Apple Silicon + MLX Whisper。
+- 当前流程主要面向 Apple Silicon + MLX Whisper；Intel Mac 或低于 macOS 14 的环境不属于默认支持路径。
+- 8GB 统一内存机器仅建议短音频或速度优先任务；默认高精度模型和长音频更建议 16GB+。
 - Bilibili 页面策略会变化，`yt-dlp` 或浏览器资源捕获可能需要按实际页面调整。
 - pyannote 模型需要 Hugging Face gated model 授权，且必须接受相关模型条款。
 - Argos 翻译适合作为初稿，发布级翻译仍建议人工或 LLM 二次校订。
