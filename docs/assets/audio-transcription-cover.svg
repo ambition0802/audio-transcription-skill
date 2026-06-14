@@ -1,64 +1,95 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640" role="img" aria-labelledby="title desc">
   <title id="title">Audio Transcription Skill</title>
-  <desc id="desc">A visual cover showing audio, transcription, subtitles, package output, and quality checks.</desc>
+  <desc id="desc">A clean cover for a Codex skill that turns audio and video into transcripts, subtitles, summaries, and delivery packages.</desc>
   <defs>
-    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
-      <stop offset="0%" stop-color="#102033"/>
-      <stop offset="52%" stop-color="#163347"/>
-      <stop offset="100%" stop-color="#1c4b4a"/>
+    <linearGradient id="leftPanel" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#15343d"/>
+      <stop offset="100%" stop-color="#245957"/>
     </linearGradient>
     <linearGradient id="accent" x1="0" x2="1">
-      <stop offset="0%" stop-color="#4fd1c5"/>
-      <stop offset="100%" stop-color="#f6c85f"/>
+      <stop offset="0%" stop-color="#2db6a3"/>
+      <stop offset="100%" stop-color="#f2b84b"/>
     </linearGradient>
-    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="0" dy="16" stdDeviation="18" flood-color="#061018" flood-opacity="0.35"/>
+    <filter id="softShadow" x="-12%" y="-18%" width="124%" height="136%">
+      <feDropShadow dx="0" dy="18" stdDeviation="20" flood-color="#0f2430" flood-opacity="0.14"/>
     </filter>
+    <style>
+      .ui { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", Arial, sans-serif; }
+      .eyebrow { font-size: 18px; font-weight: 700; letter-spacing: 2px; }
+      .title { font-size: 70px; font-weight: 800; letter-spacing: 0; }
+      .subtitle { font-size: 25px; font-weight: 500; letter-spacing: 0; }
+      .cardTitle { font-size: 28px; font-weight: 800; letter-spacing: 0; }
+      .cardText { font-size: 20px; font-weight: 500; letter-spacing: 0; }
+      .chip { font-size: 17px; font-weight: 700; letter-spacing: 0; }
+    </style>
   </defs>
-  <rect width="1280" height="640" fill="url(#bg)"/>
-  <g opacity="0.18" fill="none" stroke="#ffffff" stroke-width="2">
-    <path d="M70 490 C220 430 295 548 450 494 S720 410 876 488 S1100 550 1220 454"/>
-    <path d="M40 180 C210 95 360 268 520 178 S760 82 960 178 S1135 250 1240 158"/>
-  </g>
-  <g transform="translate(92 84)">
-    <text x="0" y="0" fill="#eaf6f7" font-size="54" font-family="Inter, PingFang SC, Arial, sans-serif" font-weight="700">Audio Transcription Skill</text>
-    <text x="0" y="52" fill="#b7d8dc" font-size="28" font-family="Inter, PingFang SC, Arial, sans-serif">音视频转录、字幕、翻译、说话人标注与交付打包</text>
-  </g>
-  <g transform="translate(92 190)" filter="url(#shadow)">
-    <rect x="0" y="0" width="330" height="260" rx="22" fill="#f8fbfb"/>
-    <text x="30" y="54" fill="#153044" font-size="26" font-family="Inter, PingFang SC, Arial, sans-serif" font-weight="700">输入源</text>
-    <g fill="none" stroke="#17384d" stroke-width="8" stroke-linecap="round">
-      <path d="M34 145 Q54 86 76 145 T118 145 T160 145 T202 145 T244 145 T286 145"/>
+
+  <rect width="1280" height="640" fill="#f6f8f4"/>
+  <path d="M0 560 C210 500 345 620 560 552 S910 466 1280 546" fill="none" stroke="#d8e2d9" stroke-width="3"/>
+  <path d="M682 70 C814 32 1018 52 1196 122" fill="none" stroke="#e1d9bd" stroke-width="8" stroke-linecap="round" opacity="0.6"/>
+  <path d="M710 100 C850 70 1020 90 1190 150" fill="none" stroke="#c6e4df" stroke-width="8" stroke-linecap="round" opacity="0.8"/>
+
+  <g class="ui" transform="translate(64 64)">
+    <rect x="0" y="0" width="500" height="512" rx="34" fill="url(#leftPanel)" filter="url(#softShadow)"/>
+    <text x="48" y="70" fill="#b8ece4" class="eyebrow">AUDIO TRANSCRIPTION SKILL</text>
+    <text x="48" y="156" fill="#f8fffd" class="title">音视频转录</text>
+    <text x="48" y="238" fill="#f8fffd" class="title">工作流</text>
+    <text x="50" y="300" fill="#d5ece9" class="subtitle">面向 Codex 的本地 Whisper</text>
+    <text x="50" y="336" fill="#d5ece9" class="subtitle">字幕校验、翻译与交付打包</text>
+
+    <g transform="translate(48 386)">
+      <rect x="0" y="0" width="112" height="40" rx="20" fill="#e9fbf7" opacity="0.96"/>
+      <rect x="128" y="0" width="116" height="40" rx="20" fill="#fff2c8" opacity="0.96"/>
+      <rect x="260" y="0" width="96" height="40" rx="20" fill="#e9fbf7" opacity="0.96"/>
+      <text x="26" y="26" fill="#17343d" class="chip">Bilibili</text>
+      <text x="154" y="26" fill="#17343d" class="chip">Podcast</text>
+      <text x="286" y="26" fill="#17343d" class="chip">Local</text>
     </g>
-    <text x="30" y="202" fill="#476171" font-size="20" font-family="Inter, PingFang SC, Arial, sans-serif">Bilibili / 小宇宙 / 本地文件 / RSS</text>
-  </g>
-  <g transform="translate(475 190)" filter="url(#shadow)">
-    <rect x="0" y="0" width="330" height="260" rx="22" fill="#f8fbfb"/>
-    <text x="30" y="54" fill="#153044" font-size="26" font-family="Inter, PingFang SC, Arial, sans-serif" font-weight="700">转录与校验</text>
-    <rect x="34" y="92" width="262" height="32" rx="8" fill="#dff4f2"/>
-    <rect x="34" y="138" width="212" height="26" rx="7" fill="#efe7c7"/>
-    <rect x="34" y="178" width="244" height="26" rx="7" fill="#dff4f2"/>
-    <text x="30" y="224" fill="#476171" font-size="20" font-family="Inter, PingFang SC, Arial, sans-serif">Whisper / 字幕源 / 幻觉检测 / 切片修复</text>
-  </g>
-  <g transform="translate(858 190)" filter="url(#shadow)">
-    <rect x="0" y="0" width="330" height="260" rx="22" fill="#f8fbfb"/>
-    <text x="30" y="54" fill="#153044" font-size="26" font-family="Inter, PingFang SC, Arial, sans-serif" font-weight="700">交付物</text>
-    <g transform="translate(36 86)">
-      <rect x="0" y="0" width="64" height="82" rx="10" fill="#17384d"/>
-      <rect x="82" y="0" width="64" height="82" rx="10" fill="#38a89d"/>
-      <rect x="164" y="0" width="64" height="82" rx="10" fill="#f6c85f"/>
-      <text x="15" y="50" fill="#ffffff" font-size="20" font-family="Inter, Arial, sans-serif">MD</text>
-      <text x="98" y="50" fill="#ffffff" font-size="20" font-family="Inter, Arial, sans-serif">SRT</text>
-      <text x="179" y="50" fill="#263238" font-size="20" font-family="Inter, Arial, sans-serif">ZIP</text>
+    <g transform="translate(48 444)">
+      <rect x="0" y="0" width="144" height="40" rx="20" fill="#ffffff" opacity="0.12"/>
+      <rect x="160" y="0" width="132" height="40" rx="20" fill="#ffffff" opacity="0.12"/>
+      <rect x="308" y="0" width="104" height="40" rx="20" fill="#ffffff" opacity="0.12"/>
+      <text x="24" y="26" fill="#e9fbf7" class="chip">large-v3-mlx</text>
+      <text x="186" y="26" fill="#e9fbf7" class="chip">SRT / VTT</text>
+      <text x="338" y="26" fill="#e9fbf7" class="chip">ZIP</text>
     </g>
-    <text x="30" y="224" fill="#476171" font-size="20" font-family="Inter, PingFang SC, Arial, sans-serif">Markdown / TXT / SRT / VTT / JSON</text>
   </g>
-  <g fill="none" stroke="url(#accent)" stroke-width="8" stroke-linecap="round">
-    <path d="M430 320 H462"/>
-    <path d="M813 320 H845"/>
-  </g>
-  <g transform="translate(92 525)">
-    <rect x="0" y="-34" width="1096" height="72" rx="18" fill="#061018" opacity="0.38"/>
-    <text x="28" y="12" fill="#d8f4f2" font-size="24" font-family="Inter, PingFang SC, Arial, sans-serif">默认 mlx-community/whisper-large-v3-mlx，脚本化处理重复流程，面向 Apple Silicon 本地转录。</text>
+
+  <g class="ui" transform="translate(620 84)">
+    <text x="0" y="34" fill="#183842" font-size="34" font-weight="800">从输入到交付，一条命令唤起</text>
+    <text x="0" y="72" fill="#577079" font-size="22" font-weight="500">下载、验证、转录、修复、总结、打包都有脚本兜底。</text>
+
+    <g transform="translate(0 116)" filter="url(#softShadow)">
+      <rect x="0" y="0" width="560" height="94" rx="18" fill="#ffffff"/>
+      <rect x="28" y="26" width="42" height="42" rx="12" fill="#dff6f2"/>
+      <path d="M36 48 Q43 31 50 48 T64 48" fill="none" stroke="#1b6f67" stroke-width="5" stroke-linecap="round"/>
+      <text x="92" y="39" fill="#15343d" class="cardTitle">1. 输入源</text>
+      <text x="92" y="70" fill="#5e737a" class="cardText">B站视频、小宇宙播客、本地音视频、已有逐字稿</text>
+    </g>
+
+    <g transform="translate(0 238)" filter="url(#softShadow)">
+      <rect x="0" y="0" width="560" height="94" rx="18" fill="#ffffff"/>
+      <rect x="28" y="24" width="42" height="46" rx="10" fill="#fff1c1"/>
+      <rect x="40" y="36" width="18" height="4" rx="2" fill="#9b6c00"/>
+      <rect x="40" y="48" width="24" height="4" rx="2" fill="#9b6c00"/>
+      <rect x="40" y="60" width="14" height="4" rx="2" fill="#9b6c00"/>
+      <text x="92" y="39" fill="#15343d" class="cardTitle">2. 转录与校验</text>
+      <text x="92" y="70" fill="#5e737a" class="cardText">默认 large-v3-mlx，优先检查可用字幕源</text>
+    </g>
+
+    <g transform="translate(0 360)" filter="url(#softShadow)">
+      <rect x="0" y="0" width="560" height="94" rx="18" fill="#ffffff"/>
+      <rect x="28" y="26" width="42" height="42" rx="12" fill="#dff6f2"/>
+      <path d="M39 40 H59 M39 50 H59 M39 60 H53" stroke="#1b6f67" stroke-width="5" stroke-linecap="round"/>
+      <text x="92" y="39" fill="#15343d" class="cardTitle">3. 交付物</text>
+      <text x="92" y="70" fill="#5e737a" class="cardText">Markdown、TXT、SRT、VTT、JSON、ZIP 和报告</text>
+    </g>
+
+    <g transform="translate(0 474)">
+      <rect x="0" y="0" width="560" height="72" rx="18" fill="#17343d"/>
+      <rect x="0" y="0" width="560" height="6" rx="3" fill="url(#accent)"/>
+      <text x="28" y="32" fill="#eafffb" font-size="20" font-weight="700">$audio-transcription 转录这个视频</text>
+      <text x="28" y="58" fill="#b8ece4" font-size="18" font-weight="600">输出逐字稿、字幕、总结和论点论据</text>
+    </g>
   </g>
 </svg>
