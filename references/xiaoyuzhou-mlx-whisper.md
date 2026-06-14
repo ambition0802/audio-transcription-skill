@@ -93,6 +93,6 @@ python3 "$SKILL_DIR/scripts/transcription_postprocess.py" \
 - `transcript_timestamped.txt` — `[HH:MM:SS] text` lines.
 - `transcript_clean.srt` — cleaned subtitles.
 - `transcript_clean.json` — cleaned segment JSON.
-- `transcript_package.zip` — zip for sharing in Feishu.
+- `transcript_package.zip` — zip for sharing or upload.
 
-Final response should include exact local paths and attach useful files via `MEDIA:/absolute/path` when in Feishu.
+Final response should include exact local paths and attach or upload useful files only when the runtime supports file attachments.

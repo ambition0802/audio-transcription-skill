@@ -21,6 +21,11 @@
 audio-transcription-skill/
 ├── SKILL.md
 ├── README.md
+├── .github/
+│   └── workflows/
+│       └── ci.yml
+├── agents/
+│   └── openai.yaml
 ├── docs/
 │   └── assets/
 │       └── audio-transcription-cover.svg
@@ -31,9 +36,14 @@ audio-transcription-skill/
 │   ├── timestamped-transcript-translation.md
 │   └── xiaoyuzhou-mlx-whisper.md
 └── scripts/
+    ├── privacy_scan.py
+    ├── validate_skill.py
     ├── diarize_pyannote_merge.py
     ├── transcription_postprocess.py
     └── translate_timestamped_transcript.py
+└── tests/
+    ├── fixtures/
+    └── test_*.py
 ```
 
 ## 核心流程总览
@@ -47,9 +57,11 @@ flowchart LR
   C --> F["verify-audio 校验时长、音轨、大小"]
   D --> F
   E --> F
-  F --> G{"是否有完整高质量字幕源"}
-  G -->|"有"| H["字幕源作为主文字稿或校对源"]
+  F --> G{"是否发现字幕源"}
+  G -->|"有"| S["inspect-subtitle 检查覆盖率"]
   G -->|"无"| I["MLX Whisper 本地转录"]
+  S -->|"覆盖完整"| H["字幕源作为主文字稿或校对源"]
+  S -->|"覆盖不足"| I
   H --> J["inspect-transcript 检测异常"]
   I --> J
   J --> K{"是否存在局部幻觉或重复"}
@@ -132,6 +144,7 @@ python3 "$SKILL_DIR/scripts/transcription_postprocess.py" --help
 | --- | --- |
 | `select-bilibili-audio` | 从 Browser `pageAssets` JSON 中选择 Bilibili 音频 `.m4s` |
 | `extract-subtitle-url` | 从 Bilibili 字幕接口响应中提取 `subtitle.bilibili.com` URL |
+| `inspect-subtitle` | 检查 Bilibili 字幕首尾时间、覆盖率、空字幕比例 |
 | `verify-audio` | 调用 `ffprobe` 检查音频时长、大小、音轨和 hash |
 | `build-metadata` | 生成或合并 `info_manual.json`，兼容 `bvid/duration_seconds/uploader_observed_on_page` 等别名 |
 | `inspect-transcript` | 检测 Whisper 重复、短 token 循环、高压缩率异常文本 |
@@ -203,6 +216,19 @@ uv run --offline \
 
 脚本不会打印 token。
 
+## 开发验证与 CI
+
+仓库内置标准库 `unittest` 测试和 GitHub Actions，不依赖真实音频或真实网页请求。测试使用 `tests/fixtures/` 中的脱敏 JSON，覆盖 Bilibili 音频选择、字幕 URL 提取、字幕覆盖率、交付物生成、切片合并、翻译缓存和 HF token 读取顺序。
+
+```bash
+python3 scripts/validate_skill.py .
+PYTHONPYCACHEPREFIX=/tmp/audio_skill_pycache python3 -m py_compile scripts/*.py
+python3 -m unittest discover -s tests -v
+python3 scripts/privacy_scan.py .
+```
+
+CI 流程见 [`.github/workflows/ci.yml`](.github/workflows/ci.yml)。
+
 ## Bilibili 执行流程
 
 ```mermaid
@@ -226,7 +252,7 @@ sequenceDiagram
     C->>C: curl + Referer/User-Agent 下载并 remux
   end
   C->>P: verify-audio
-  C->>P: 尝试 extract-subtitle-url
+  C->>P: 尝试 extract-subtitle-url + inspect-subtitle
   alt 完整字幕可用
     C->>P: 字幕源生成文字稿
   else 需要本地转录
@@ -428,17 +454,19 @@ python3 "$SKILL_DIR/scripts/transcription_postprocess.py" \
 建议推送前运行：
 
 ```bash
-gitleaks detect --source .
+python3 scripts/privacy_scan.py .
 ```
 
 ## 验证
 
 ```bash
-python3 "${CODEX_HOME:-$HOME/.codex}/skills/.system/skill-creator/scripts/quick_validate.py" .
+python3 scripts/validate_skill.py .
 PYTHONPYCACHEPREFIX=/tmp/audio_skill_pycache python3 -m py_compile scripts/*.py
+python3 -m unittest discover -s tests -v
 python3 scripts/transcription_postprocess.py --help
 python3 scripts/translate_timestamped_transcript.py --help
 python3 scripts/diarize_pyannote_merge.py --help
+python3 scripts/privacy_scan.py .
 ```
 
 ## 参考文档

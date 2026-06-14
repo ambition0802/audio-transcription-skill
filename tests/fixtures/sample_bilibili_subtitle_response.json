@@ -1,0 +1,10 @@
+{
+  "code": 0,
+  "data": {
+    "subtitles": [
+      {
+        "subtitle_url": "//subtitle.bilibili.com/bfs/subtitle/sample.json?auth_key=example-auth-key"
+      }
+    ]
+  }
+}

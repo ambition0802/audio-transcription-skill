@@ -66,6 +66,6 @@ python3 "$SKILL_DIR/scripts/transcription_postprocess.py" verify-package --out t
 uvx --from argostranslate python "$SKILL_DIR/scripts/translate_timestamped_transcript.py" transcript_timestamped.txt --out transcript_timestamped_zh.txt --require-timestamp
 ```
 
-## Feishu doc pattern
+## External documentation pattern
 
-When the user asks to document the local setup in Feishu, create a Markdown source first and then use `lark-cli docs +create --markdown @file`. If user OAuth has expired, `--as user` may clear the token and fail; either have the user re-login or create with `--as bot` and state permission caveats.
+When the user asks to publish setup notes to an external document system, create a Markdown source first, then use the platform-specific upload tool only if it is available in the runtime. If authentication fails, ask the user to reauthenticate or provide a shareable destination.

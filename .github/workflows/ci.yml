@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Validate skill metadata
+        run: python3 scripts/validate_skill.py .
+      - name: Compile scripts
+        run: PYTHONPYCACHEPREFIX=/tmp/audio_skill_pycache python3 -m py_compile scripts/*.py
+      - name: Run unit tests
+        run: python3 -m unittest discover -s tests -v
+      - name: Check CLIs
+        run: |
+          python3 scripts/transcription_postprocess.py --help >/tmp/postprocess_help.txt
+          python3 scripts/translate_timestamped_transcript.py --help >/tmp/translate_help.txt
+          python3 scripts/diarize_pyannote_merge.py --help >/tmp/diarize_help.txt
+      - name: Scan for secrets
+        run: python3 scripts/privacy_scan.py .

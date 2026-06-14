@@ -127,7 +127,15 @@ When Bilibili exposes complete subtitles, prefer them as the primary transcript 
      --report subtitle_extract.json \
      --allow-missing
    ```
-3. If the subtitle body can be downloaded and decoded, verify that its first/last timestamps cover the video duration. If coverage is complete, generate the transcript deliverables from Bilibili subtitles and note the source in metadata.
+3. If the subtitle body can be downloaded and decoded, verify coverage with the helper:
+   ```bash
+   python3 "$SKILL_DIR/scripts/transcription_postprocess.py" \
+     inspect-subtitle subtitle_body.json \
+     --duration <SECONDS> \
+     --report subtitle_coverage.json \
+     --fail-on-incomplete
+   ```
+   If coverage is complete, generate the transcript deliverables from Bilibili subtitles and note the source in metadata.
 4. If the user requested Whisper, or if subtitle coverage/quality is incomplete, compare the subtitles against Whisper output around uncertain terms and hallucination-prone regions.
 5. If the subtitle URL is expired, TLS fails, or the body is not decodable, record the failure in metadata/notes and continue with Whisper output.
 

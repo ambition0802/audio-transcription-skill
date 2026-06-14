@@ -1,0 +1,19 @@
+{
+  "assets": [
+    {
+      "name": "video-100022.m4s",
+      "url": "https://upos-sz-mirror.example.invalid/upgcxcode/1/2/3-100022.m4s",
+      "sources": ["performance"]
+    },
+    {
+      "name": "audio-30216.m4s",
+      "url": "https://xy123x456x789xy.mcdn.bilivideo.com/upgcxcode/1/2/3-30216.m4s",
+      "sources": ["pageAssets", "performance"]
+    },
+    {
+      "name": "telemetry.m4s",
+      "url": "https://data.bilibili.com/log-30216.m4s",
+      "sources": ["performance"]
+    }
+  ]
+}

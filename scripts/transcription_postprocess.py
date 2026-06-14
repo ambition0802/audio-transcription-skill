@@ -4,6 +4,7 @@
 Subcommands:
   select-bilibili-audio   Pick the best audio .m4s URL from Browser pageAssets JSON.
   extract-subtitle-url    Extract subtitle.bilibili.com URL from Bilibili subtitle response.
+  inspect-subtitle        Check Bilibili subtitle body coverage and empty-line ratio.
   verify-audio            Inspect an audio file with ffprobe and validate duration/streams.
   build-metadata          Build or merge an info_manual.json-style metadata file.
   inspect-transcript      Flag likely Whisper hallucination/repetition regions.
@@ -229,7 +230,10 @@ def cmd_extract_subtitle_url(args: argparse.Namespace) -> int:
         if args.allow_missing:
             print(json.dumps(report, ensure_ascii=False))
             return 0
-        raise SystemExit(f"No subtitle body URL found in {args.response}")
+        raise SystemExit(
+            f"No subtitle body URL found in {args.response}. "
+            "Save the raw x/v2/subtitle/web/view response and retry, or continue with Whisper."
+        )
     args.out.write_text(url + "\n", encoding="utf-8")
     print(json.dumps({"out": str(args.out), "url_length": len(url)}, ensure_ascii=False))
     return 0
@@ -251,7 +255,7 @@ def cmd_verify_audio(args: argparse.Namespace) -> int:
     try:
         proc = subprocess.run(cmd, check=True, capture_output=True, text=True)
     except FileNotFoundError as exc:
-        raise SystemExit("ffprobe not found; install ffmpeg first") from exc
+        raise SystemExit("ffprobe not found. Install ffmpeg first, for example: brew install ffmpeg") from exc
     except subprocess.CalledProcessError as exc:
         raise SystemExit(f"ffprobe failed for {args.audio}: {exc.stderr.strip()}") from exc
 
@@ -364,7 +368,7 @@ def cmd_build_metadata(args: argparse.Namespace) -> int:
     return 0 if not missing or not args.fail_on_missing else 2
 
 
-def load_segments(path: Path) -> tuple[dict, list[dict]]:
+def load_segments(path: Path, include_empty: bool = False) -> tuple[dict, list[dict]]:
     data = read_json(path)
     metadata: dict = {}
     segments: list[dict] = []
@@ -387,10 +391,103 @@ def load_segments(path: Path) -> tuple[dict, list[dict]]:
     clean = []
     for seg in segments:
         text = str(seg.get("text") or "").strip()
-        if not text:
+        if not text and not include_empty:
             continue
         clean.append({"start": float(seg.get("start", 0.0)), "end": float(seg.get("end", 0.0)), "text": text, **{k: v for k, v in seg.items() if k not in {"start", "end", "text"}}})
     return metadata, clean
+
+
+def interval_union_seconds(segments: list[dict]) -> float:
+    intervals = sorted((float(s["start"]), float(s["end"])) for s in segments if float(s["end"]) > float(s["start"]))
+    if not intervals:
+        return 0.0
+    total = 0.0
+    cur_start, cur_end = intervals[0]
+    for start, end in intervals[1:]:
+        if start <= cur_end:
+            cur_end = max(cur_end, end)
+        else:
+            total += cur_end - cur_start
+            cur_start, cur_end = start, end
+    total += cur_end - cur_start
+    return total
+
+
+def cmd_inspect_subtitle(args: argparse.Namespace) -> int:
+    metadata, segments = load_segments(args.subtitle, include_empty=True)
+    segment_count = len(segments)
+    empty_count = sum(1 for s in segments if not str(s.get("text") or "").strip())
+    empty_ratio = empty_count / segment_count if segment_count else 1.0
+    first_start = min((float(s["start"]) for s in segments), default=None)
+    last_end = max((float(s["end"]) for s in segments), default=None)
+    coverage_seconds = interval_union_seconds(segments)
+    expected_duration = args.duration or metadata.get("duration_seconds") or metadata.get("duration")
+    coverage_ratio = None
+    duration_gap = None
+    if expected_duration:
+        expected_duration = float(expected_duration)
+        coverage_ratio = coverage_seconds / expected_duration if expected_duration > 0 else 0.0
+        duration_gap = expected_duration - float(last_end or 0.0)
+
+    warnings: list[str] = []
+    ok = True
+    if segment_count == 0:
+        ok = False
+        warnings.append("no-subtitle-segments")
+    if empty_ratio > args.max_empty_ratio:
+        ok = False
+        warnings.append("too-many-empty-segments")
+    if first_start is not None and first_start > args.start_tolerance:
+        ok = False
+        warnings.append("subtitle-starts-too-late")
+    if expected_duration is not None:
+        if coverage_ratio is not None and coverage_ratio < args.min_coverage:
+            ok = False
+            warnings.append("coverage-ratio-too-low")
+        if duration_gap is not None and duration_gap > args.end_tolerance:
+            ok = False
+            warnings.append("subtitle-ends-too-early")
+    else:
+        warnings.append("expected-duration-missing")
+
+    report = {
+        "subtitle": str(args.subtitle),
+        "ok": ok,
+        "usable_as_primary": ok,
+        "warnings": warnings,
+        "segment_count": segment_count,
+        "empty_count": empty_count,
+        "empty_ratio": round(empty_ratio, 4),
+        "first_start": first_start,
+        "last_end": last_end,
+        "expected_duration": expected_duration,
+        "duration_gap_seconds": duration_gap,
+        "coverage_seconds": round(coverage_seconds, 3),
+        "coverage_ratio": round(coverage_ratio, 4) if coverage_ratio is not None else None,
+        "thresholds": {
+            "min_coverage": args.min_coverage,
+            "start_tolerance": args.start_tolerance,
+            "end_tolerance": args.end_tolerance,
+            "max_empty_ratio": args.max_empty_ratio,
+        },
+    }
+    if args.report:
+        write_json(args.report, report)
+    print(
+        json.dumps(
+            {
+                "ok": ok,
+                "segments": segment_count,
+                "coverage_ratio": report["coverage_ratio"],
+                "duration_gap_seconds": duration_gap,
+                "warnings": warnings,
+            },
+            ensure_ascii=False,
+        )
+    )
+    if not ok and args.fail_on_incomplete:
+        return 2
+    return 0
 
 
 def repetition_metrics(text: str) -> dict:
@@ -660,6 +757,17 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--report", type=Path)
     p.add_argument("--allow-missing", action="store_true")
     p.set_defaults(func=cmd_extract_subtitle_url)
+
+    p = sub.add_parser("inspect-subtitle")
+    p.add_argument("subtitle", type=Path)
+    p.add_argument("--duration", type=float)
+    p.add_argument("--min-coverage", type=float, default=0.95)
+    p.add_argument("--start-tolerance", type=float, default=5.0)
+    p.add_argument("--end-tolerance", type=float, default=5.0)
+    p.add_argument("--max-empty-ratio", type=float, default=0.05)
+    p.add_argument("--report", type=Path)
+    p.add_argument("--fail-on-incomplete", action="store_true")
+    p.set_defaults(func=cmd_inspect_subtitle)
 
     p = sub.add_parser("verify-audio")
     p.add_argument("audio", type=Path)
