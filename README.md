@@ -43,21 +43,27 @@ python3 "${CODEX_HOME:-$HOME/.codex}/skills/.system/skill-creator/scripts/quick_
 export SKILL_DIR="${CODEX_HOME:-$HOME/.codex}/skills/audio-transcription"
 ```
 
-### 2. 准备依赖
+### 2. 自动准备依赖
 
-基础依赖：
-
-```bash
-which ffmpeg || brew install ffmpeg
-which uvx || python3 -m pip install --user uv
-```
-
-安装或试运行 MLX Whisper：
+用户不需要逐项检查命令或手动安装 `mlx-whisper`。Skill 在运行前会先调用依赖预检脚本，自动检查并安装可自动安装的运行时工具：
 
 ```bash
-uv tool install mlx-whisper
-mlx_whisper --help
+python3 "$SKILL_DIR/scripts/ensure_runtime_dependencies.py" \
+  --install \
+  --profile transcribe \
+  --report dependency_report.json
 ```
+
+Bilibili 视频会使用 `bilibili` profile，额外准备 `yt-dlp`：
+
+```bash
+python3 "$SKILL_DIR/scripts/ensure_runtime_dependencies.py" \
+  --install \
+  --profile bilibili \
+  --report dependency_report.json
+```
+
+这个步骤会处理 `ffmpeg/ffprobe`、`uv/uvx`、`mlx_whisper` 等常用依赖。只有当系统缺少 Homebrew、网络不可用、或安装权限不足时，脚本才会返回明确错误，Codex 会把阻塞点告诉你。
 
 默认转录模型是：
 
@@ -107,6 +113,11 @@ cd ~/Downloads/audio-transcription-demo
 export SKILL_DIR="${CODEX_HOME:-$HOME/.codex}/skills/audio-transcription"
 
 cp /path/to/audio.m4a source.m4a
+
+python3 "$SKILL_DIR/scripts/ensure_runtime_dependencies.py" \
+  --install \
+  --profile transcribe \
+  --report dependency_report.json
 
 python3 "$SKILL_DIR/scripts/transcription_postprocess.py" \
   verify-audio source.m4a \
@@ -184,9 +195,14 @@ flowchart LR
 手动处理时，核心命令是：
 
 ```bash
-uvx --from yt-dlp yt-dlp --dump-json --no-playlist '<BILIBILI_URL>' > info.json
+python3 "$SKILL_DIR/scripts/ensure_runtime_dependencies.py" \
+  --install \
+  --profile bilibili \
+  --report dependency_report.json
 
-uvx --from yt-dlp yt-dlp \
+yt-dlp --dump-json --no-playlist '<BILIBILI_URL>' > info.json
+
+yt-dlp \
   -f 'bestaudio/best' \
   --extract-audio --audio-format m4a --audio-quality 0 \
   --no-playlist \
@@ -327,6 +343,25 @@ python3 "$SKILL_DIR/scripts/transcription_postprocess.py" --help
 | `emit-deliverables` | 从结构化 JSON 生成 `txt/md/srt/vtt/json` |
 | `verify-package` | 生成 zip 包、统计行数、大小和 SHA-256 |
 
+### `ensure_runtime_dependencies.py`
+
+运行前依赖预检和安装脚本。Codex 使用它自动准备运行时工具，用户通常不需要手动检查依赖。
+
+```bash
+python3 "$SKILL_DIR/scripts/ensure_runtime_dependencies.py" \
+  --install \
+  --profile transcribe \
+  --report dependency_report.json
+```
+
+| Profile | 准备内容 |
+| --- | --- |
+| `transcribe` | `ffmpeg/ffprobe`、`uv/uvx`、`mlx_whisper` |
+| `bilibili` | `transcribe` 依赖 + `yt-dlp` |
+| `translate` | `uv/uvx`，翻译脚本会按需安装 Argos 语言包 |
+| `diarize` | `ffmpeg/ffprobe`、`uv/uvx`，并检查环境里是否已有 HF token |
+| `all` | 所有 profile 的合集 |
+
 ### `translate_timestamped_transcript.py`
 
 翻译已有时间戳逐字稿，同时保留时间戳前缀。适合把播客、访谈、会议的英文时间戳稿翻译成中文初稿。
@@ -440,7 +475,7 @@ audio-transcription-skill/
 
 ## 开发验证与 CI
 
-仓库内置标准库 `unittest` 测试和 GitHub Actions，不依赖真实音频或真实网页请求。测试使用 `tests/fixtures/` 中的脱敏 JSON，覆盖 Bilibili 音频选择、字幕 URL 提取、字幕覆盖率、交付物生成、切片合并、翻译缓存和 HF token 读取顺序。
+仓库内置标准库 `unittest` 测试和 GitHub Actions，不依赖真实音频或真实网页请求。测试使用 `tests/fixtures/` 中的脱敏 JSON，覆盖依赖预检、Bilibili 音频选择、字幕 URL 提取、字幕覆盖率、交付物生成、切片合并、翻译缓存和 HF token 读取顺序。
 
 本地验证：
 
@@ -449,6 +484,7 @@ python3 scripts/validate_skill.py .
 PYTHONPYCACHEPREFIX=/tmp/audio_skill_pycache python3 -m py_compile scripts/*.py
 python3 -m unittest discover -s tests -v
 python3 scripts/transcription_postprocess.py --help
+python3 scripts/ensure_runtime_dependencies.py --help
 python3 scripts/translate_timestamped_transcript.py --help
 python3 scripts/diarize_pyannote_merge.py --help
 python3 scripts/privacy_scan.py .

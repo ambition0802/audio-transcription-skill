@@ -13,7 +13,8 @@ Use when the user asks to get a transcript/文字稿/逐字稿 from a podcast ep
 
 - Respond in the user's language with direct, actionable paths and commands.
 - Set `SKILL_DIR="${CODEX_HOME:-$HOME/.codex}/skills/audio-transcription"` before running bundled scripts from another working directory.
-- On Apple Silicon Macs, prefer `mlx-whisper` for local transcription. For one-off jobs use `uvx --from mlx-whisper mlx_whisper`; if the user asks for a stable local setup, install globally with `uv tool install mlx-whisper` and verify `$HOME/.local/bin/mlx_whisper`.
+- Before downloading or transcribing, run `scripts/ensure_runtime_dependencies.py --install --profile <profile> --report dependency_report.json` so the user does not have to manually check/install runtime tools. Use profile `bilibili` for Bilibili URLs, `transcribe` for local audio/video and ordinary audio pages, `translate` for timestamped transcript translation, and `diarize` for speaker labeling.
+- On Apple Silicon Macs, prefer the stable `mlx_whisper` command prepared by the dependency preflight. If preflight fails because a package manager or system-level tool is unavailable, report the blocker and the missing tool instead of asking the user to run exploratory `which ...` checks.
 - For all transcription tasks, default to the higher-accuracy local model `mlx-community/whisper-large-v3-mlx`; use `mlx-community/whisper-large-v3-turbo` only when the user explicitly prioritizes speed over accuracy.
 - Use a domain-specific `--initial-prompt` for Chinese/English mixed technical podcasts, finance videos, company names, stock tickers, and technical terms.
 - Use `scripts/transcription_postprocess.py` for deterministic Bilibili URL selection, subtitle URL extraction, subtitle coverage inspection, audio verification, metadata building, transcript inspection, slice merging, deliverable generation, and package verification instead of retyping ad hoc Python snippets.
@@ -22,9 +23,19 @@ Use when the user asks to get a transcript/文字稿/逐字稿 from a podcast ep
 
 ## Workflow
 
-1. **Find the audio source**
+1. **Prepare runtime dependencies**
+   ```bash
+   SKILL_DIR="${CODEX_HOME:-$HOME/.codex}/skills/audio-transcription"
+   python3 "$SKILL_DIR/scripts/ensure_runtime_dependencies.py" \
+     --install \
+     --profile transcribe \
+     --report dependency_report.json
+   ```
+   Use `--profile bilibili` before Bilibili work so `yt-dlp` is also prepared. Use `--profile translate` for timestamped transcript translation and `--profile diarize` for speaker labeling. Do not ask the user to manually check `ffmpeg`, `uv`, or `mlx_whisper`; run this preflight and continue when it succeeds.
+
+2. **Find the audio source**
    - For ordinary pages, inspect the DOM for `<audio>`/`<source>` elements or network media URLs.
-   - For Bilibili URLs, prefer `uvx --from yt-dlp yt-dlp --dump-json --no-playlist '<URL>' > info.json`, then download audio with `yt-dlp -f 'bestaudio/best' --extract-audio --audio-format m4a`; see `references/bilibili-video-transcription.md`.
+   - For Bilibili URLs, run the dependency preflight with `--profile bilibili`, then prefer `yt-dlp --dump-json --no-playlist '<URL>' > info.json` and download audio with `yt-dlp -f 'bestaudio/best' --extract-audio --audio-format m4a`; see `references/bilibili-video-transcription.md`.
    - If Bilibili `yt-dlp` hits HTTP 412 but the page loads in a browser, use Browser `pageAssets.list()` or the browser performance/resource list to capture `.m4s` URLs. Save the inventory as `media_urls.json`, then run `scripts/transcription_postprocess.py select-bilibili-audio media_urls.json --out audio_url.txt --report audio_selection.json`. Download the selected URL with Bilibili `Referer` + desktop `User-Agent`, remux to `.m4a`, verify with `verify-audio`, and build `info_manual.json` with `build-metadata` from loaded-page title/uploader/duration/BV/cid rather than blocking on `yt-dlp` JSON.
    - For Bilibili pages, also try to find `x/v2/subtitle/web/view` in page resources. Download the response, then run `scripts/transcription_postprocess.py extract-subtitle-url subtitle_view.bin --out subtitle_body_url.txt --report subtitle_extract.json --allow-missing`. If a subtitle body can be downloaded, run `inspect-subtitle subtitle_body.json --duration <SECONDS> --report subtitle_coverage.json`; prefer complete subtitle coverage as the primary transcript source unless the user explicitly asks for Whisper/local transcription. Use incomplete subtitles only to correct Whisper names/tickers/uncertain regions.
    - In a browser console, this is often enough:
@@ -33,7 +44,7 @@ Use when the user asks to get a transcript/文字稿/逐字稿 from a podcast ep
      ```
    - If a page has an RSS feed, use the enclosure URL when available.
 
-2. **Download and verify audio**
+3. **Download and verify audio**
    ```bash
    mkdir -p ~/Downloads/audio_transcripts/<episode_id>
    cd ~/Downloads/audio_transcripts/<episode_id>
@@ -45,24 +56,9 @@ Use when the user asks to get a transcript/文字稿/逐字稿 from a podcast ep
    ```
    Add `--expected-duration <SECONDS>` when the expected full duration is known.
 
-3. **Check tools / install `mlx_whisper`**
-   ```bash
-   which ffmpeg || brew install ffmpeg
-   which uvx || python3 -m pip install --user uv
-   # One-off, no global command:
-   uvx --from mlx-whisper mlx_whisper --help
-   # Stable global CLI:
-   uv tool install mlx-whisper
-   which mlx_whisper
-   uv tool list
-   ```
-   Notes:
-   - `uvx` caches a temporary environment under `~/.cache/uv/archive-v0/...`; it is not a stable path and may consume hundreds of MB. After `uv tool install mlx-whisper`, old uvx cache directories can be removed if disk space matters, then re-run `mlx_whisper --help` to verify the global install still works.
-   - `uv tool install mlx-whisper` installs the executable at `~/.local/bin/mlx_whisper`, typically symlinked to `~/.local/share/uv/tools/mlx-whisper/bin/mlx_whisper`.
-
 4. **Run transcription**
    ```bash
-   uvx --from mlx-whisper mlx_whisper episode.m4a \
+   mlx_whisper episode.m4a \
      --model mlx-community/whisper-large-v3-mlx \
      --language zh \
      --task transcribe \

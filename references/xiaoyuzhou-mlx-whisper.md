@@ -34,6 +34,10 @@ Result shape:
 mkdir -p ~/Downloads/xiaoyuzhou_transcripts/<episode_id>
 cd ~/Downloads/xiaoyuzhou_transcripts/<episode_id>
 SKILL_DIR="${CODEX_HOME:-$HOME/.codex}/skills/audio-transcription"
+python3 "$SKILL_DIR/scripts/ensure_runtime_dependencies.py" \
+  --install \
+  --profile transcribe \
+  --report dependency_report.json
 curl -L --fail --retry 3 -o episode.m4a '<media.xyzcdn.net m4a URL>'
 python3 "$SKILL_DIR/scripts/transcription_postprocess.py" \
   verify-audio episode.m4a \
@@ -45,7 +49,7 @@ Long podcast episodes can be multiple hours; keep the transcription running in t
 ## MLX Whisper command
 
 ```bash
-uvx --from mlx-whisper mlx_whisper episode.m4a \
+mlx_whisper episode.m4a \
   --model mlx-community/whisper-large-v3-mlx \
   --language zh \
   --task transcribe \
@@ -58,7 +62,7 @@ uvx --from mlx-whisper mlx_whisper episode.m4a \
 
 Use `mlx-community/whisper-large-v3-turbo` only when the user explicitly prioritizes speed over accuracy.
 
-For a long episode, run in the background and poll/wait until exit. The first `uvx` run may download packages such as `mlx-metal`, `torch`, `numba`, etc.
+For a long episode, run in the background and poll/wait until exit. The dependency preflight installs the stable `mlx_whisper` command before transcription.
 
 ## Cleanup pattern
 

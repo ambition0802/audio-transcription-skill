@@ -4,7 +4,17 @@ Session-derived setup notes for stable local transcription on the user's Apple S
 
 ## Stable install
 
-Use `uv tool install` when the user wants a persistent command instead of one-off `uvx` execution:
+Run the dependency preflight before transcription work. It checks and installs the stable runtime tools so the user does not have to manually run `which` commands:
+
+```bash
+SKILL_DIR="${CODEX_HOME:-$HOME/.codex}/skills/audio-transcription"
+python3 "$SKILL_DIR/scripts/ensure_runtime_dependencies.py" \
+  --install \
+  --profile transcribe \
+  --report dependency_report.json
+```
+
+The preflight uses `uv tool install` for a persistent `mlx_whisper` command when needed:
 
 ```bash
 uv tool install mlx-whisper
@@ -25,7 +35,7 @@ mlx-whisper v0.4.3
 
 ## uvx cache cleanup
 
-`uvx --from mlx-whisper mlx_whisper ...` creates a temporary cached environment under `~/.cache/uv/archive-v0/<id>/`. It is safe to keep (faster future uvx runs) or delete (recover disk space) once a stable `uv tool install` exists.
+Older one-off `uvx` executions can create temporary cached environments under `~/.cache/uv/archive-v0/<id>/`. They are safe to keep (faster future one-off runs) or delete (recover disk space) once the preflight has prepared a stable `mlx_whisper` command.
 
 Observed cleanup example:
 
@@ -58,6 +68,7 @@ Use the skill helper for deterministic repeated tasks instead of retyping one-of
 
 ```bash
 SKILL_DIR="${CODEX_HOME:-$HOME/.codex}/skills/audio-transcription"
+python3 "$SKILL_DIR/scripts/ensure_runtime_dependencies.py" --install --profile transcribe --report dependency_report.json
 python3 "$SKILL_DIR/scripts/transcription_postprocess.py" --help
 python3 "$SKILL_DIR/scripts/transcription_postprocess.py" verify-audio episode.m4a --report audio_verification.json
 python3 "$SKILL_DIR/scripts/transcription_postprocess.py" inspect-transcript transcript_whisper_large_v3_mlx.json --report hallucination_report.json

@@ -20,6 +20,7 @@ jobs:
         run: python3 -m unittest discover -s tests -v
       - name: Check CLIs
         run: |
+          python3 scripts/ensure_runtime_dependencies.py --help >/tmp/ensure_deps_help.txt
           python3 scripts/transcription_postprocess.py --help >/tmp/postprocess_help.txt
           python3 scripts/translate_timestamped_transcript.py --help >/tmp/translate_help.txt
           python3 scripts/diarize_pyannote_merge.py --help >/tmp/diarize_help.txt

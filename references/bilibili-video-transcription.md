@@ -9,7 +9,12 @@ mkdir -p ~/Downloads/bilibili_transcripts/<BV_ID>
 cd ~/Downloads/bilibili_transcripts/<BV_ID>
 SKILL_DIR="${CODEX_HOME:-$HOME/.codex}/skills/audio-transcription"
 
-uvx --from yt-dlp yt-dlp --dump-json --no-playlist '<BILIBILI_URL>' > info.json
+python3 "$SKILL_DIR/scripts/ensure_runtime_dependencies.py" \
+  --install \
+  --profile bilibili \
+  --report dependency_report.json
+
+yt-dlp --dump-json --no-playlist '<BILIBILI_URL>' > info.json
 python3 "$SKILL_DIR/scripts/transcription_postprocess.py" \
   build-metadata \
   --from-json info.json \
@@ -19,7 +24,7 @@ python3 "$SKILL_DIR/scripts/transcription_postprocess.py" \
   --require id \
   --fail-on-missing
 
-uvx --from yt-dlp yt-dlp \
+yt-dlp \
   -f 'bestaudio/best' \
   --extract-audio --audio-format m4a --audio-quality 0 \
   --no-playlist \
