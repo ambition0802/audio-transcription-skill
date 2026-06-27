@@ -48,13 +48,23 @@ mlx_whisper source.m4a \
 
 Use `mlx-community/whisper-large-v3-turbo` only when the user explicitly chooses speed over accuracy.
 
-## Create deliverables from JSON
+## Apply inline corrections and create deliverables from JSON
 
-Prefer generating final deliverables from structured JSON segments rather than trusting line formatting in the raw txt. Use the bundled helper instead of retyping ad hoc Python:
+Prefer generating final deliverables from structured JSON segments rather than trusting line formatting in the raw txt. When review finds a suspected name, ticker, acronym, or technical-term error, record it in `transcript_corrections.json` and let the helper apply and annotate it. Do not hand-edit each output file.
 
 ```bash
 python3 "$SKILL_DIR/scripts/transcription_postprocess.py" \
-  emit-deliverables transcript_clean.json \
+  apply-corrections transcript_clean.json \
+  --corrections transcript_corrections.json \
+  --out transcript_corrected.json \
+  --report correction_report.json
+```
+
+Use `transcript_corrected.json` below when corrections exist; otherwise use `transcript_clean.json`. See `transcript-inline-corrections.md` for the manifest schema and exact annotation format.
+
+```bash
+python3 "$SKILL_DIR/scripts/transcription_postprocess.py" \
+  emit-deliverables transcript_corrected.json \
   --metadata info_manual.json \
   --out-dir . \
   --source-kind whisper
@@ -141,7 +151,7 @@ When Bilibili exposes complete subtitles, prefer them as the primary transcript 
      --fail-on-incomplete
    ```
    If coverage is complete, generate the transcript deliverables from Bilibili subtitles and note the source in metadata.
-4. If the user requested Whisper, or if subtitle coverage/quality is incomplete, compare the subtitles against Whisper output around uncertain terms and hallucination-prone regions.
+4. If the user requested Whisper, or if subtitle coverage/quality is incomplete, compare the subtitles against Whisper output around uncertain terms and hallucination-prone regions. Record reviewed term changes in `transcript_corrections.json` and run `apply-corrections`; do not patch final transcript formats by hand.
 5. If the subtitle URL is expired, TLS fails, or the body is not decodable, record the failure in metadata/notes and continue with Whisper output.
 
 ## Long-video Whisper hallucination mitigation
@@ -217,11 +227,11 @@ For Chinese finance or stock-market videos, use a richer prompt:
 这是一个中文财经/股票视频。请使用简体中文，保留 A股、美股、指数、公司代码、仓位、估值、流动性、风险偏好、机构、散户、政策、财报、AI、半导体、科技股、马斯克、特朗普等必要术语。
 ```
 
-When summarizing, create `summary_arguments.md` if the user asks for arguments/evidence. Include one-sentence overview, core summary, an argument/evidence table, and uncertainty notes for tickers, names, and English terms that may be misrecognized.
+When summarizing, create `summary_arguments.md` if the user asks for arguments/evidence. Include one-sentence overview, core summary, and an argument/evidence table. Keep corrected tickers, names, and English terms annotated at their actual transcript positions; an optional index may be derived from `correction_report.json` for navigation.
 
 ## Pitfalls
 
 - `yt-dlp` may warn that higher video qualities require Bilibili login/cookies; this is usually irrelevant for audio transcription if `bestaudio` downloads successfully.
-- For long livestream-style videos, transcript openings, middles, or tails may contain repeated phrases or one-token loops. Inspect beginning/middle/tail samples; remove only obvious loops, not uncertain content.
+- For long livestream-style videos, transcript openings, middles, or tails may contain repeated phrases or one-token loops. Inspect beginning/middle/tail samples; remove only obvious loops. Apply reviewed uncertain-term changes through `apply-corrections` so the original machine text remains visible inline.
 - If `yt-dlp` metadata fails with HTTP 412 but browser playback succeeds, don't stop: capture the `.m4s` audio URL from browser resource entries and remux it.
 - If summarizing a long transcript manually, read it in chunks before writing the summary; avoid summarizing only the beginning.

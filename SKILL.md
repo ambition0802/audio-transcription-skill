@@ -1,6 +1,6 @@
 ---
 name: audio-transcription
-description: "Transcribe podcasts/audio files with Whisper/MLX on Apple Silicon; extract audio URLs, generate txt/srt/vtt/json, and package results."
+description: "Transcribe podcasts/audio files with Whisper/MLX on Apple Silicon; extract audio URLs, generate txt/srt/vtt/json, apply auditable inline term corrections, and package results."
 ---
 
 # Audio Transcription
@@ -16,8 +16,10 @@ Use when the user asks to get a transcript/文字稿/逐字稿 from a podcast ep
 - Before downloading or transcribing, run `scripts/ensure_runtime_dependencies.py --install --profile <profile> --report dependency_report.json` so the user does not have to manually check/install runtime tools. Use profile `bilibili` for Bilibili URLs, `transcribe` for local audio/video and ordinary audio pages, `translate` for timestamped transcript translation, and `diarize` for speaker labeling.
 - On Apple Silicon Macs, prefer the stable `mlx_whisper` command prepared by the dependency preflight. If preflight fails because a package manager or system-level tool is unavailable, report the blocker and the missing tool instead of asking the user to run exploratory `which ...` checks.
 - For all transcription tasks, default to the higher-accuracy local model `mlx-community/whisper-large-v3-mlx`; use `mlx-community/whisper-large-v3-turbo` only when the user explicitly prioritizes speed over accuracy.
-- Use a domain-specific `--initial-prompt` for Chinese/English mixed technical podcasts, finance videos, company names, stock tickers, and technical terms.
+- Put repeatable, fixed logic in bundled scripts. Use prompts only for semantic judgment that cannot be made deterministic; never use a prompt as the implementation for replacement, annotation, formatting, validation, or packaging.
+- A domain-specific `--initial-prompt` may bias recognition for Chinese/English mixed technical content, but it must not perform transcript correction or output formatting.
 - Use `scripts/transcription_postprocess.py` for deterministic Bilibili URL selection, subtitle URL extraction, subtitle coverage inspection, audio verification, metadata building, transcript inspection, slice merging, deliverable generation, and package verification instead of retyping ad hoc Python snippets.
+- For suspected transcription errors, write a structured correction manifest and run `apply-corrections`. Correct the text in place and retain the original machine text in an inline label; do not substitute a detached uncertainty list for transcript correction.
 - Use `scripts/translate_timestamped_transcript.py` when translating timestamped transcripts while preserving timestamp prefixes.
 - Save deliverables under a concrete directory such as `~/Downloads/<source>_transcripts/<episode_id>/`; return exact paths and attach/upload files only when the runtime supports attachments.
 
@@ -75,7 +77,7 @@ Use when the user asks to get a transcript/文字稿/逐字稿 from a podcast ep
    - Watch for repeated one-character/short-token loops, 30-second blocks filled with repeated text, nonsense high-compression text, and repeated outro hallucinations after music/silence.
    - If a whole run has repeated-token hallucinations, rerun with `--condition-on-previous-text False --compression-ratio-threshold 2.4 --logprob-threshold -1.0 --no-speech-threshold 0.6`.
    - If only one region remains bad, cut that region with `ffmpeg -ss ... -t ...`, transcribe the slice with the default model, then run `scripts/transcription_postprocess.py merge-slice --base transcript_noprev.json --slice slice_transcript.json --start <START> --end <END> --out transcript_clean.json` and regenerate final deliverables with `emit-deliverables`.
-   - Remove only obvious repeated hallucination loops; do not silently rewrite uncertain content.
+   - Remove only obvious repeated hallucination loops. For names, tickers, acronyms, and technical terms that can be contextually corrected, create `transcript_corrections.json` and apply it with the script below. Do not silently rewrite or leave the correction only in a summary note.
    - Report that machine transcription still needs human review for names, paper titles, company names, and English terms.
 
 6. **Optional: speaker labels / diarization**
@@ -87,17 +89,20 @@ Use when the user asks to get a transcript/文字稿/逐字稿 from a podcast ep
    - Also verify pyannote cluster quality before delivery: for long interviews with sponsor reads / AI voice demos, `min_speakers=2,max_speakers=2` can assign the whole main interview to one speaker and use the second cluster for ads or short inserted voices. Inspect raw speaker counts/durations and anchor ranges. If the two main speakers collapse, retry with `max_speakers=4` or produce a clearly labeled `text_inferred` speaker version rather than claiming pyannote identified the speakers.
    - See `references/speaker-diarization-podcasts.md` for a compact recipe and pitfalls; `scripts/diarize_pyannote_merge.py` is a reusable merge and diagnostics script for `transcript_clean.json` + `episode_16k.wav`.
 
-7. **Create deliverables**
-   - Generate transcript deliverables with `scripts/transcription_postprocess.py emit-deliverables transcript_clean.json --metadata info_manual.json --out-dir .`. If the user asks for “不要时间戳 / no timestamps”, return `transcript_no_timestamps.md` and `transcript_no_timestamps.txt`; keep timestamps only in optional `.srt/.vtt/.json` support files.
+7. **Apply reviewed corrections and create deliverables**
+   - If uncertain or misrecognized terms were identified, write `transcript_corrections.json`, then run `scripts/transcription_postprocess.py apply-corrections transcript_clean.json --corrections transcript_corrections.json --out transcript_corrected.json --report correction_report.json`. Use `confirmed` for verified corrections and `probable` for contextual inference. The script emits `替换词〔校订；原转写：机器词〕` or `替换词〔疑似校订；原转写：机器词〕`. See `references/transcript-inline-corrections.md` for the schema.
+   - Generate all transcript formats from `transcript_corrected.json` when corrections exist; otherwise use `transcript_clean.json`. Do not manually patch generated `.md/.txt/.srt/.vtt` files. Run `scripts/transcription_postprocess.py emit-deliverables <SOURCE_JSON> --metadata info_manual.json --out-dir .`.
+   - If the user asks for “不要时间戳 / no timestamps”, return `transcript_no_timestamps.md` and `transcript_no_timestamps.txt`; keep timestamps only in optional `.srt/.vtt/.json` support files.
    - If the user asks to translate an existing timestamped transcript, preserve the timestamp prefix exactly and translate only the text body line-by-line. Use `scripts/translate_timestamped_transcript.py` for Argos setup, caching, partial writes, line-count verification, sample reports, and common term handling. See `references/timestamped-transcript-translation.md`.
-   - For Chinese finance/stock-market videos, use an `--initial-prompt` that includes terms such as A股、美股、指数、公司代码、仓位、估值、流动性、风险偏好、财报、AI、半导体、科技股、马斯克、特朗普 when relevant. In summaries, keep uncertain tickers/names in an uncertainty section instead of forcing corrections.
-   - For a summary request, create `summary.md` with: one-sentence overview, themed bullet sections, actionable conclusions, and transcription-uncertainty notes for likely misrecognized proper nouns/technical terms.
-   - If the user asks to list all arguments and evidence, create `summary_arguments.md` with: one-sentence overview, core summary, an argument/evidence table, and uncertainty notes.
+   - For Chinese finance/stock-market videos, an `--initial-prompt` may include terms such as A股、美股、指数、公司代码、仓位、估值、流动性、风险偏好、财报、AI、半导体、科技股、马斯克、特朗普 when relevant. Resolve actual misrecognitions through the correction manifest and script.
+   - For a summary request, create `summary.md` with: one-sentence overview, themed bullet sections, and actionable conclusions. If useful, derive a correction index from `correction_report.json`, but keep every correction marked in the transcript itself.
+   - If the user asks to list all arguments and evidence, create `summary_arguments.md` with: one-sentence overview, core summary, and an argument/evidence table. Do not use the summary as the only location for transcription corrections.
    - `transcript.md`: title/source/model note + show-note chapters if available + timestamped transcript.
    - `transcript_timestamped.txt`: simple timestamped plain text.
    - `transcript_clean.srt`: subtitle format.
    - `transcript_clean.json`: structured segments.
    - `transcript_clean.vtt`: WebVTT support file.
+   - `transcript_corrections.json` and `correction_report.json`: reviewed correction manifest and deterministic audit report when corrections exist.
    - `transcript_package.zip` or `transcript_summary_package.zip`: package the useful files.
    - If translation is requested: `transcript_timestamped_zh.txt` (or language-specific suffix), plus any cache file if useful for resuming but usually exclude cache from the final package unless requested.
    - If diarization is requested and verified: `transcript_speaker_labeled.md/.txt/.srt/.json`.
@@ -115,7 +120,7 @@ Use when the user asks to get a transcript/文字稿/逐字稿 from a podcast ep
 
 - Web extraction tools may fail on Xiaoyuzhou or report internal-network blocking; use a browser page snapshot/console to inspect the loaded DOM instead.
 - `mlx-whisper --output-format all` can produce a large single-line JSON; use Python `json.loads` rather than line-based inspection.
-- Chinese tech podcasts and finance videos often mix English terms, company names, and tickers; a good `--initial-prompt` materially improves terminology.
+- Chinese tech podcasts and finance videos often mix English terms, company names, and tickers. An initial prompt can improve recognition, but corrections still require the structured manifest and deterministic application step.
 - Whisper may repeat text in the opening, middle, or closing sentence during silence/music/noisy speech. Always inspect the beginning, a middle sample, and the last 1–2 minutes before packaging.
 - Long episodes should run as a background process and be polled until completion rather than stopping with “I’ll wait”.
 - If using pyannote for diarization on Apple Silicon, do not leave it on CPU for long podcasts. Pin a compatible `pyannote.audio` 3.x stack when needed, use `use_auth_token`, and move the pipeline to MPS before calling it; see `references/speaker-diarization-podcasts.md`.
@@ -125,4 +130,5 @@ Use when the user asks to get a transcript/文字稿/逐字稿 from a podcast ep
 - `references/xiaoyuzhou-mlx-whisper.md` — concrete Xiaoyuzhou episode extraction and MLX Whisper command pattern from a successful session.
 - `references/bilibili-video-transcription.md` — Bilibili URL → `yt-dlp` audio download → MLX Whisper → no-timestamp transcript + summary/package workflow.
 - `references/mlx-whisper-local-setup.md` — stable `uv tool install` setup, `uvx` cache cleanup, and local command templates.
+- `references/transcript-inline-corrections.md` — correction manifest schema, inline annotation rules, strict matching, and audit workflow.
 - `references/speaker-diarization-podcasts.md` — speaker-labeling workflow, pyannote HF token requirements, and pitfalls from a failed naive ECAPA clustering attempt.

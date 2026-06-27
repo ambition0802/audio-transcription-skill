@@ -9,6 +9,7 @@ Subcommands:
   build-metadata          Build or merge an info_manual.json-style metadata file.
   inspect-transcript      Flag likely Whisper hallucination/repetition regions.
   merge-slice             Replace a damaged time range with a separately transcribed slice.
+  apply-corrections       Apply reviewed term corrections with inline provenance labels.
   emit-deliverables       Generate txt/md/srt/vtt/json deliverables from segment JSON.
   verify-package          Verify deliverables, compute hashes, and create a zip package.
 """
@@ -47,6 +48,8 @@ DEFAULT_PACKAGE_FILES = (
     "info.json",
     "info_manual.json",
     "hallucination_report.json",
+    "transcript_corrections.json",
+    "correction_report.json",
     "audio_verification.json",
     "transcript_speaker_labeled.md",
     "transcript_speaker_labeled.txt",
@@ -604,6 +607,188 @@ def cmd_merge_slice(args: argparse.Namespace) -> int:
     return 0
 
 
+CORRECTION_LABELS = {
+    "confirmed": "校订",
+    "probable": "疑似校订",
+}
+
+
+def correction_annotation(original: str, replacement: str, status: str) -> str:
+    label = CORRECTION_LABELS[status]
+    return f"{replacement}〔{label}；原转写：{original}〕"
+
+
+def correction_target_indexes(entry: dict, segments: list[dict]) -> list[int]:
+    has_index = "segment_index" in entry
+    has_time = "start" in entry or "end" in entry
+    if has_index and has_time:
+        raise ValueError("use segment_index or start/end, not both")
+    if has_index:
+        index = entry["segment_index"]
+        if not isinstance(index, int) or isinstance(index, bool):
+            raise ValueError("segment_index must be an integer")
+        if index < 0 or index >= len(segments):
+            raise ValueError(f"segment_index {index} is out of range")
+        return [index]
+    if not has_time:
+        return list(range(len(segments)))
+
+    start = float(entry.get("start", 0.0))
+    end = float(entry.get("end", math.inf))
+    if not math.isfinite(start) or start < 0:
+        raise ValueError("start must be a finite non-negative number")
+    if end <= start:
+        raise ValueError("end must be greater than start")
+    return [
+        index
+        for index, segment in enumerate(segments)
+        if float(segment["end"]) > start and float(segment["start"]) < end
+    ]
+
+
+def cmd_apply_corrections(args: argparse.Namespace) -> int:
+    metadata, segments = load_segments(args.transcript)
+    manifest = read_json(args.corrections)
+    if not isinstance(manifest, dict) or manifest.get("version") != 1:
+        raise SystemExit("Correction manifest must be an object with version: 1")
+    entries = manifest.get("corrections")
+    if not isinstance(entries, list):
+        raise SystemExit("Correction manifest must contain a corrections array")
+
+    results: list[dict] = []
+    errors: list[str] = []
+    seen_ids: set[str] = set()
+    applied = 0
+    already_applied = 0
+
+    for position, raw_entry in enumerate(entries, 1):
+        fallback_id = f"correction-{position:03d}"
+        if not isinstance(raw_entry, dict):
+            errors.append(f"{fallback_id}: entry must be an object")
+            continue
+        entry = dict(raw_entry)
+        correction_id = str(entry.get("id") or fallback_id).strip()
+        result = {"id": correction_id}
+        results.append(result)
+        if not correction_id:
+            result.update({"state": "error", "error": "id must not be empty"})
+            errors.append(f"{fallback_id}: id must not be empty")
+            continue
+        if correction_id in seen_ids:
+            result.update({"state": "error", "error": "duplicate id"})
+            errors.append(f"{correction_id}: duplicate id")
+            continue
+        seen_ids.add(correction_id)
+
+        original = entry.get("original")
+        replacement = entry.get("replacement")
+        status = entry.get("status", "probable")
+        expected_matches = entry.get("expected_matches", 1)
+        try:
+            if not isinstance(original, str) or not original:
+                raise ValueError("original must be a non-empty string")
+            if not isinstance(replacement, str) or not replacement:
+                raise ValueError("replacement must be a non-empty string")
+            if original == replacement:
+                raise ValueError("original and replacement must differ")
+            if any(mark in replacement for mark in ("〔", "〕")):
+                raise ValueError("replacement must not contain annotation brackets")
+            if status not in CORRECTION_LABELS:
+                raise ValueError("status must be confirmed or probable")
+            if not isinstance(expected_matches, int) or isinstance(expected_matches, bool) or expected_matches < 1:
+                raise ValueError("expected_matches must be a positive integer")
+            indexes = correction_target_indexes(entry, segments)
+        except (TypeError, ValueError) as exc:
+            result.update({"state": "error", "error": str(exc)})
+            errors.append(f"{correction_id}: {exc}")
+            continue
+
+        annotated = correction_annotation(original, replacement, status)
+        annotated_matches = 0
+        raw_matches = 0
+        for index in indexes:
+            text = str(segments[index]["text"])
+            annotated_matches += text.count(annotated)
+            raw_matches += text.replace(annotated, "").count(original)
+
+        result.update(
+            {
+                "status": status,
+                "original": original,
+                "replacement": replacement,
+                "annotation": annotated,
+                "target_segment_count": len(indexes),
+                "expected_matches": expected_matches,
+                "raw_matches": raw_matches,
+                "annotated_matches": annotated_matches,
+                "reason": entry.get("reason", ""),
+            }
+        )
+        if annotated_matches == expected_matches and raw_matches == 0:
+            result["state"] = "already-applied"
+            already_applied += expected_matches
+            continue
+        if annotated_matches:
+            message = "target contains a mixture of annotated and unannotated matches"
+            result.update({"state": "error", "error": message})
+            errors.append(f"{correction_id}: {message}")
+            continue
+        if raw_matches != expected_matches:
+            message = f"expected {expected_matches} exact match(es), found {raw_matches}"
+            result.update({"state": "error", "error": message})
+            errors.append(f"{correction_id}: {message}")
+            continue
+
+        for index in indexes:
+            segments[index]["text"] = str(segments[index]["text"]).replace(original, annotated)
+        result["state"] = "applied"
+        applied += raw_matches
+
+    report = {
+        "ok": not errors,
+        "transcript": str(args.transcript),
+        "corrections": str(args.corrections),
+        "manifest_sha256": sha256_file(args.corrections),
+        "out": str(args.out),
+        "dry_run": args.dry_run,
+        "entry_count": len(entries),
+        "applied_matches": applied,
+        "already_applied_matches": already_applied,
+        "error_count": len(errors),
+        "errors": errors,
+        "results": results,
+    }
+    if args.report:
+        write_json(args.report, report)
+    if errors:
+        print(json.dumps({"ok": False, "errors": len(errors), "report": str(args.report) if args.report else None}, ensure_ascii=False))
+        return 2
+
+    if not args.dry_run:
+        status_counts = Counter(str(entry.get("status", "probable")) for entry in entries if isinstance(entry, dict))
+        metadata["correction_note"] = "疑似错词已原位校订；〔校订/疑似校订；原转写：...〕保留机器转写以便复核。"
+        metadata["transcript_corrections"] = {
+            "manifest": args.corrections.name,
+            "manifest_sha256": report["manifest_sha256"],
+            "entry_count": len(entries),
+            "confirmed_count": status_counts.get("confirmed", 0),
+            "probable_count": status_counts.get("probable", 0),
+        }
+        write_json(args.out, {"metadata": metadata, "segments": segments})
+    print(
+        json.dumps(
+            {
+                "ok": True,
+                "out": None if args.dry_run else str(args.out),
+                "applied_matches": applied,
+                "already_applied_matches": already_applied,
+            },
+            ensure_ascii=False,
+        )
+    )
+    return 0
+
+
 def ts(sec: float, sep: str = ".") -> str:
     sec = max(0.0, float(sec))
     total = int(math.floor(sec))
@@ -664,7 +849,9 @@ def cmd_emit_deliverables(args: argparse.Namespace) -> int:
         f"来源：{metadata.get('source_url', '')}\n"
         f"转录/字幕来源：{metadata.get('source_kind', '')}\n"
         f"转录模型：{metadata.get('transcription_model', '')}\n"
-        f"说明：{metadata.get('review_note', '')}\n\n---\n\n"
+        f"说明：{metadata.get('review_note', '')}\n"
+        + (f"校订标记：{metadata['correction_note']}\n" if metadata.get("correction_note") else "")
+        + "\n---\n\n"
     )
     (out_dir / "transcript_no_timestamps.md").write_text(header + plain, encoding="utf-8")
 
@@ -811,6 +998,14 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--offset", type=float)
     p.add_argument("--out", type=Path, required=True)
     p.set_defaults(func=cmd_merge_slice)
+
+    p = sub.add_parser("apply-corrections")
+    p.add_argument("transcript", type=Path)
+    p.add_argument("--corrections", type=Path, required=True)
+    p.add_argument("--out", type=Path, default=Path("transcript_corrected.json"))
+    p.add_argument("--report", type=Path, default=Path("correction_report.json"))
+    p.add_argument("--dry-run", action="store_true")
+    p.set_defaults(func=cmd_apply_corrections)
 
     p = sub.add_parser("emit-deliverables")
     p.add_argument("transcript", type=Path)
