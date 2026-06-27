@@ -2,13 +2,14 @@
 
 ![Audio Transcription Skill 封面](docs/assets/audio-transcription-cover.svg)
 
-这是一个面向 Codex 的音视频转录 Skill。它把音频下载、MLX Whisper 转录、Bilibili 字幕源校验、幻觉检测、切片修复、时间戳翻译、说话人标注、交付物生成和打包校验整理成一套可复用流程。
+这是一个面向 Codex 的音视频转录 Skill。它把音频下载、MLX Whisper 转录、Bilibili 字幕源校验、幻觉检测、切片修复、可审计的原位术语校订、时间戳翻译、说话人标注、交付物生成和打包校验整理成一套可复用流程。
 
 适合处理：
 
 - Bilibili 视频转录、总结、论点和论据整理。
 - 小宇宙播客或普通网页音频转录。
 - 本地 `.m4a`、`.mp3`、`.mp4`、`.wav` 等音视频文件转录。
+- 对机器误识别的人名、公司名、股票代码、缩写和技术术语进行原位校订，并保留原转写供复核。
 - 已有时间戳逐字稿的翻译。
 - 播客或访谈稿的说话人标注。
 
@@ -102,7 +103,8 @@ mlx-community/whisper-large-v3-turbo
 
 ```text
 $audio-transcription 转录这个 B 站视频：https://www.bilibili.com/video/BVxxxx，
-输出逐字稿、SRT、VTT、总结，并列出所有论点和对应论据。
+输出逐字稿、SRT、VTT、总结，并列出所有论点和对应论据；
+疑似错词直接在逐字稿原位校订并标注原机器转写。
 ```
 
 ```text
@@ -120,7 +122,7 @@ $audio-transcription 给 transcript_clean.json 做说话人标注，
 主持人是 Alice，嘉宾是 Bob。
 ```
 
-Codex 会按来源类型读取对应参考流程，并优先调用 `scripts/` 中的脚本处理固定步骤。
+Codex 会按来源类型读取对应参考流程，并优先调用 `scripts/` 中的脚本处理固定步骤。提示词只用于无法确定化的语义判断；精确替换、原位标注、匹配校验、格式生成和打包都由脚本完成。
 
 ## 命令行最小示例
 
@@ -175,10 +177,58 @@ python3 "$SKILL_DIR/scripts/transcription_postprocess.py" \
 | `transcript_clean.srt` | 字幕文件 |
 | `transcript_clean.vtt` | WebVTT 字幕 |
 | `transcript_clean.json` | 结构化分段数据 |
+| `transcript_corrections.json` | 经复核的结构化校订清单，包含原词、替换词、状态、范围和预期匹配数 |
+| `correction_report.json` | 校订应用结果、匹配数量、清单 hash 和错误审计信息 |
 | `transcript_package.zip` | 打包后的交付文件 |
 | `package_report.json` | 交付包大小、行数、SHA-256 和缺失项 |
 
 ## 常见任务怎么做
+
+### 逐字稿原位校订
+
+复核发现机器转写中的人名、公司名、股票代码、缩写或技术术语有误时，不要分别手改 Markdown、TXT、SRT 和 VTT。先把判断写入 `transcript_corrections.json`：
+
+```json
+{
+  "version": 1,
+  "corrections": [
+    {
+      "id": "term-001",
+      "original": "韩武G",
+      "replacement": "寒武纪",
+      "status": "probable",
+      "expected_matches": 1,
+      "start": 120.0,
+      "end": 180.0,
+      "reason": "上下文在讨论国产 AI 芯片公司"
+    }
+  ]
+}
+```
+
+然后由脚本精确应用校订并生成审计报告：
+
+```bash
+python3 "$SKILL_DIR/scripts/transcription_postprocess.py" \
+  apply-corrections transcript_clean.json \
+  --corrections transcript_corrections.json \
+  --out transcript_corrected.json \
+  --report correction_report.json
+
+python3 "$SKILL_DIR/scripts/transcription_postprocess.py" \
+  emit-deliverables transcript_corrected.json \
+  --out-dir . \
+  --source-kind whisper
+```
+
+标注结果直接出现在逐字稿对应位置：
+
+- 已由音频、字幕或可靠资料确认：`寒武纪〔校订；原转写：韩武G〕`
+- 仍属于上下文推断：`寒武纪〔疑似校订；原转写：韩武G〕`
+
+`apply-corrections` 支持用 `segment_index` 或 `start/end` 限定范围，按 `expected_matches` 严格检查精确匹配数量，并识别已经应用的标记以保证重复执行结果一致。ID、范围或匹配数量有误时，命令返回失败并写入 `correction_report.json`，不会写出新的逐字稿。
+
+详细字段说明见 [`references/transcript-inline-corrections.md`](references/transcript-inline-corrections.md)。
 
 ### Bilibili 视频
 
@@ -207,8 +257,13 @@ flowchart LR
   I -->|"不完整"| K["MLX Whisper 转录"]
   J --> L["inspect-transcript"]
   K --> L
-  L --> M["emit-deliverables"]
-  M --> N["verify-package"]
+  L --> M{"是否发现疑似错词"}
+  M -->|"是"| N["apply-corrections"]
+  M -->|"否"| O["使用 transcript_clean.json"]
+  N --> P["transcript_corrected.json"]
+  O --> Q["emit-deliverables"]
+  P --> Q
+  Q --> R["verify-package"]
 ```
 
 手动处理时，核心命令是：
@@ -344,7 +399,7 @@ uv run --offline \
 
 ### `transcription_postprocess.py`
 
-统一处理音频验证、B 站资源选择、字幕 URL 提取、字幕覆盖率检查、幻觉检测、切片合并、交付物生成和打包。
+统一处理音频验证、B 站资源选择、字幕 URL 提取、字幕覆盖率检查、幻觉检测、切片合并、原位术语校订、交付物生成和打包。
 
 ```bash
 python3 "$SKILL_DIR/scripts/transcription_postprocess.py" --help
@@ -359,6 +414,7 @@ python3 "$SKILL_DIR/scripts/transcription_postprocess.py" --help
 | `build-metadata` | 生成或合并 `info_manual.json` |
 | `inspect-transcript` | 检测 Whisper 重复、短 token 循环、高压缩率异常文本 |
 | `merge-slice` | 将局部重转录片段合并回完整 JSON |
+| `apply-corrections` | 按结构化清单精确校订疑似错词，原位保留原转写并生成审计报告 |
 | `emit-deliverables` | 从结构化 JSON 生成 `txt/md/srt/vtt/json` |
 | `verify-package` | 生成 zip 包、统计行数、大小和 SHA-256 |
 
@@ -413,14 +469,17 @@ python3 "$SKILL_DIR/scripts/transcription_postprocess.py" \
 flowchart LR
   A["transcript_clean.json"] --> B["inspect-transcript"]
   B --> C{"是否异常"}
-  C -->|"正常"| D["emit-deliverables"]
+  C -->|"正常"| D{"是否发现疑似错词"}
   C -->|"整体重复"| E["禁用 previous-text 重跑"]
   C -->|"局部损坏"| F["ffmpeg 切片"]
   F --> G["切片单独转录"]
   G --> H["merge-slice 合并"]
   E --> D
   H --> D
-  D --> I["verify-package"]
+  D -->|"是"| I["apply-corrections"]
+  D -->|"否"| J["emit-deliverables"]
+  I --> J
+  J --> K["verify-package"]
 ```
 
 整体重跑常用参数：
@@ -480,6 +539,7 @@ audio-transcription-skill/
 │   ├── mlx-whisper-local-setup.md
 │   ├── speaker-diarization-podcasts.md
 │   ├── timestamped-transcript-translation.md
+│   ├── transcript-inline-corrections.md
 │   └── xiaoyuzhou-mlx-whisper.md
 ├── scripts/
 │   ├── diarize_pyannote_merge.py
@@ -494,7 +554,7 @@ audio-transcription-skill/
 
 ## 开发验证与 CI
 
-仓库内置标准库 `unittest` 测试和 GitHub Actions，不依赖真实音频或真实网页请求。测试使用 `tests/fixtures/` 中的脱敏 JSON，覆盖依赖预检、Bilibili 音频选择、字幕 URL 提取、字幕覆盖率、交付物生成、切片合并、翻译缓存和 HF token 读取顺序。
+仓库内置标准库 `unittest` 测试和 GitHub Actions，不依赖真实音频或真实网页请求。测试使用 `tests/fixtures/` 中的脱敏 JSON，覆盖依赖预检、Bilibili 音频选择、字幕 URL 提取、字幕覆盖率、原位校订、幂等执行、失败保护、交付物生成、切片合并、翻译缓存和 HF token 读取顺序。
 
 本地验证：
 
@@ -541,6 +601,14 @@ python3 scripts/privacy_scan.py .
 
 先用 `inspect-subtitle` 检查覆盖率、首尾时间和空字幕比例。覆盖完整时可以作为主稿或校对源；覆盖不足时回到 Whisper。
 
+**逐字稿里发现疑似错词应该怎么处理？**
+
+把原词、替换词、确认状态、匹配范围和预期匹配数写入 `transcript_corrections.json`，再运行 `apply-corrections`。不要只在总结末尾列“不确定项”，也不要分别手改各格式文件；脚本会在对应位置写成 `替换词〔校订/疑似校订；原转写：机器词〕`，并生成 `correction_report.json` 供复核。
+
+**为什么不用提示词直接改写逐字稿？**
+
+提示词适合识别候选词和判断语境，但替换、标注、范围限制、匹配计数和格式传播需要可重复、可审计。这个 Skill 因此把语义判断保留给模型，把固定逻辑交给 `apply-corrections` 脚本。
+
 **说话人标注为什么需要 token？**
 
 pyannote 的部分模型是 gated model，需要 Hugging Face 授权。脚本会读取 token，但不会打印 token。
@@ -556,6 +624,7 @@ pyannote 的部分模型是 gated model，需要 Hugging Face 授权。脚本会
 - [`references/mlx-whisper-local-setup.md`](references/mlx-whisper-local-setup.md)：MLX Whisper 本地安装说明。
 - [`references/speaker-diarization-podcasts.md`](references/speaker-diarization-podcasts.md)：说话人分离流程。
 - [`references/timestamped-transcript-translation.md`](references/timestamped-transcript-translation.md)：时间戳文字稿翻译流程。
+- [`references/transcript-inline-corrections.md`](references/transcript-inline-corrections.md)：逐字稿原位校订清单、标注规则和审计流程。
 
 ## 限制
 
